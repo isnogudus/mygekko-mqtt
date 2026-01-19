@@ -59,7 +59,8 @@ func NewMQTTClient(cfg MQTTConfig, gekkoName string) (*MQTTClient, error) {
 
 	// Set Last Will Testament - broker publishes "false" if we disconnect unexpectedly
 	onlineTopic := root + "/online"
-	opts.SetWill(onlineTopic, "false", 0, true)
+	slog.Info("Setting LWT", "topic", onlineTopic)
+	opts.SetWill(onlineTopic, "false", 1, true) // QoS 1 for reliability
 
 	opts.SetConnectionLostHandler(func(c mqtt.Client, err error) {
 		if err != nil {
@@ -119,5 +120,10 @@ func (m *MQTTClient) Subscribe(topic string, handler func(topic string, payload 
 }
 
 func (m *MQTTClient) Disconnect() {
+	// Publish offline status before graceful disconnect
+	// (LWT only triggers on unexpected disconnect, not graceful ones)
+	onlineTopic := m.root + "/online"
+	token := m.client.Publish(onlineTopic, 1, true, "false")
+	token.Wait()
 	m.client.Disconnect(1000)
 }
