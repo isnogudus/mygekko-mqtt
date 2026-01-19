@@ -10,6 +10,7 @@ A bridge that connects MyGEKKO home automation systems to MQTT, enabling integra
 - History-based deduplication (only publishes changed values)
 - JSON publishing with timestamps for each item
 - Supports both TCP (TLS) and Unix socket MQTT connections
+- MQTT Last Will and Testament (LWT) for online/offline status
 - Configurable polling intervals
 - Structured logging with configurable log levels
 
@@ -105,15 +106,17 @@ client_id = "mygekko-mqtt"
 ### Published Topics (Status)
 
 ```
+{root}/{gekkoname}/online                           # "true"/"false" (retained, LWT)
 {root}/{gekkoname}/{category}/{item}/get/{field}    # Individual field values
 {root}/{gekkoname}/{category}/{item}/get/json       # JSON with all fields + timestamp
 {root}/{gekkoname}/{category}/get/time              # Polling timestamp per category
-{root}/{gekkoname}/getter_online                    # Bridge getter status
-{root}/{gekkoname}/setter_online                    # Bridge setter status
 ```
+
+The `online` topic uses MQTT Last Will and Testament (LWT): it is set to "true" (retained) on connect and the broker automatically publishes "false" if the client disconnects unexpectedly.
 
 Example:
 ```
+mygekko/MyHome/online                        -> true (retained)
 mygekko/MyHome/blinds/item0/get/position     -> 50
 mygekko/MyHome/blinds/item0/get/angle        -> 45.5
 mygekko/MyHome/blinds/item0/get/json         -> {"position":50,"angle":45.5,"timestamp":1705123456}

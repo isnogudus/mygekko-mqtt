@@ -248,7 +248,7 @@ func TestNewBridge(t *testing.T) {
 		"blinds": {{Name: "position", Type: "int"}},
 	}
 
-	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs)
+	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs, "TestGekko")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -269,7 +269,7 @@ func TestProcessItem_PublishesValues(t *testing.T) {
 		},
 	}
 
-	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs)
+	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs, "TestGekko")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -291,9 +291,9 @@ func TestProcessItem_PublishesValues(t *testing.T) {
 		t.Errorf("expected 1 JSON published, got %d", len(mockMQTT.jsonPublished))
 	}
 
-	// Verify topics
-	expectedTopic1 := "TestGekko/blinds/item0/get/position"
-	expectedTopic2 := "TestGekko/blinds/item0/get/angle"
+	// Verify topics (without gekkoName prefix - root already includes it)
+	expectedTopic1 := "blinds/item0/get/position"
+	expectedTopic2 := "blinds/item0/get/angle"
 	found1, found2 := false, false
 	for _, msg := range mockMQTT.published {
 		if msg.Topic == expectedTopic1 {
@@ -325,7 +325,7 @@ func TestProcessItem_HistoryDeduplication(t *testing.T) {
 		"blinds": {{Name: "position", Type: "int"}},
 	}
 
-	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs)
+	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs, "TestGekko")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -362,7 +362,7 @@ func TestProcessItem_JSONContainsTimestamp(t *testing.T) {
 		"blinds": {{Name: "position", Type: "int"}},
 	}
 
-	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs)
+	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs, "TestGekko")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -402,7 +402,7 @@ func TestProcessItem_SkipsEmptyValues(t *testing.T) {
 		},
 	}
 
-	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs)
+	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs, "TestGekko")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -432,7 +432,7 @@ func TestProcessItem_SkipsNullFields(t *testing.T) {
 		},
 	}
 
-	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs)
+	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs, "TestGekko")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -457,7 +457,7 @@ func TestProcessItem_UnknownCategory(t *testing.T) {
 		"blinds": {{Name: "position", Type: "int"}},
 	}
 
-	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs)
+	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs, "TestGekko")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -489,7 +489,7 @@ func TestHandleSetCommand(t *testing.T) {
 
 	fieldDefs := map[string][]FieldDef{}
 
-	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs)
+	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, fieldDefs, "TestGekko")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

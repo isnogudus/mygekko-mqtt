@@ -24,8 +24,16 @@ func main() {
 	SetupLogger(cfg.LogLevel)
 	slog.Info("Starting mygekko-mqtt bridge")
 
-	// Create clients
+	// Create MyGEKKO client
 	gekko := NewMyGekkoClient(cfg.MyGekko)
+
+	// Get gekko name first (needed for MQTT LWT topic)
+	gekkoName, err := gekko.GetGekkoName()
+	if err != nil {
+		slog.Error("Failed to get gekko name", "error", err)
+		os.Exit(2)
+	}
+	slog.Info("Gekko name", "name", gekkoName)
 
 	// Load field definitions from MyGEKKO
 	fieldDefinitions, err := LoadFieldDefinitions(gekko)
@@ -34,7 +42,8 @@ func main() {
 		os.Exit(2)
 	}
 
-	mqtt, err := NewMQTTClient(cfg.MQTT)
+	// Connect to MQTT with LWT (Last Will Testament)
+	mqtt, err := NewMQTTClient(cfg.MQTT, gekkoName)
 	if err != nil {
 		slog.Error("Failed to connect to MQTT", "error", err)
 		os.Exit(1)
@@ -42,7 +51,7 @@ func main() {
 	defer mqtt.Disconnect()
 
 	// Create and start bridge
-	bridge, err := NewBridge(cfg, gekko, mqtt, fieldDefinitions)
+	bridge, err := NewBridge(cfg, gekko, mqtt, fieldDefinitions, gekkoName)
 	if err != nil {
 		slog.Error("Failed to create bridge", "error", err)
 		os.Exit(1)

@@ -17,8 +17,11 @@ type MQTTClient struct {
 	root   string
 }
 
-func NewMQTTClient(cfg MQTTConfig) (*MQTTClient, error) {
+func NewMQTTClient(cfg MQTTConfig, gekkoName string) (*MQTTClient, error) {
 	opts := mqtt.NewClientOptions()
+
+	// Root topic includes gekko name
+	root := cfg.Root + "/" + gekkoName
 
 	// Parse the URL to determine connection type
 	parsedURL, err := url.Parse(cfg.URL)
@@ -54,6 +57,10 @@ func NewMQTTClient(cfg MQTTConfig) (*MQTTClient, error) {
 	opts.SetConnectRetry(true)
 	opts.SetConnectRetryInterval(5 * time.Second)
 
+	// Set Last Will Testament - broker publishes "false" if we disconnect unexpectedly
+	onlineTopic := root + "/online"
+	opts.SetWill(onlineTopic, "false", 0, true)
+
 	opts.SetConnectionLostHandler(func(c mqtt.Client, err error) {
 		if err != nil {
 			slog.Error("Unexpected MQTT disconnection. Will exit", "error", err)
@@ -65,6 +72,12 @@ func NewMQTTClient(cfg MQTTConfig) (*MQTTClient, error) {
 
 	opts.SetOnConnectHandler(func(c mqtt.Client) {
 		slog.Info("Connected to MQTT")
+		// Publish online status (retained)
+		token := c.Publish(onlineTopic, 0, true, "true")
+		token.Wait()
+		if token.Error() != nil {
+			slog.Error("Failed to publish online status", "error", token.Error())
+		}
 	})
 
 	client := mqtt.NewClient(opts)
@@ -74,7 +87,7 @@ func NewMQTTClient(cfg MQTTConfig) (*MQTTClient, error) {
 
 	return &MQTTClient{
 		client: client,
-		root:   cfg.Root,
+		root:   root,
 	}, nil
 }
 

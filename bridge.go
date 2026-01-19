@@ -43,15 +43,8 @@ type Bridge struct {
 	cancel    context.CancelFunc
 }
 
-func NewBridge(cfg *Config, gekko GekkoClient, mqtt MQTTPublisher, fieldDefinitions map[string][]FieldDef) (*Bridge, error) {
+func NewBridge(cfg *Config, gekko GekkoClient, mqtt MQTTPublisher, fieldDefinitions map[string][]FieldDef, gekkoName string) (*Bridge, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-
-	gekkoName, err := gekko.GetGekkoName()
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to get gekko name: %w", err)
-	}
-	slog.Info("Gekko name", "name", gekkoName)
 
 	return &Bridge{
 		cfg:       cfg,
@@ -71,12 +64,6 @@ func (b *Bridge) Stop() {
 
 func (b *Bridge) RunGetter() {
 	slog.Info("Starting getter...")
-	if err := b.mqtt.Publish(fmt.Sprintf("%s/getter_online", b.gekkoName), "true"); err != nil {
-		slog.Error("Failed to publish getter_online", "error", err)
-		os.Exit(6)
-	}
-
-	slog.Info("Start MyGekko polling")
 	ticker := time.NewTicker(time.Duration(b.cfg.MyGekko.Interval * float64(time.Second)))
 	defer ticker.Stop()
 
@@ -155,7 +142,7 @@ func (b *Bridge) pollCategories(categories []string) {
 		}
 
 		// Publish timestamp for category
-		if err := b.mqtt.Publish(fmt.Sprintf("%s/%s/get/time", b.gekkoName, category), time.Now().Unix()); err != nil {
+		if err := b.mqtt.Publish(fmt.Sprintf("%s/get/time", category), time.Now().Unix()); err != nil {
 			slog.Error("Failed to publish timestamp", "category", category, "error", err)
 			os.Exit(6)
 		}
@@ -232,7 +219,7 @@ func (b *Bridge) processItem(category, item string, sumstate any) {
 		hasChanges = true
 
 		// Publish individual field to MQTT
-		topic := fmt.Sprintf("%s/%s/%s/get/%s", b.gekkoName, category, item, field.Name)
+		topic := fmt.Sprintf("%s/%s/get/%s", category, item, field.Name)
 		if err := b.mqtt.Publish(topic, value); err != nil {
 			slog.Error("Failed to publish", "topic", topic, "error", err)
 			os.Exit(6)
@@ -242,7 +229,7 @@ func (b *Bridge) processItem(category, item string, sumstate any) {
 	// Publish JSON with all fields if any value changed
 	if hasChanges && len(itemData) > 0 {
 		itemData["timestamp"] = time.Now().Unix()
-		jsonTopic := fmt.Sprintf("%s/%s/%s/get/json", b.gekkoName, category, item)
+		jsonTopic := fmt.Sprintf("%s/%s/get/json", category, item)
 		if err := b.mqtt.PublishJSON(jsonTopic, itemData); err != nil {
 			slog.Error("Failed to publish JSON", "topic", jsonTopic, "error", err)
 			os.Exit(6)
@@ -252,17 +239,13 @@ func (b *Bridge) processItem(category, item string, sumstate any) {
 
 func (b *Bridge) RunSetter() {
 	slog.Info("Starting setter...")
-	if err := b.mqtt.Publish(fmt.Sprintf("%s/setter_online", b.gekkoName), "true"); err != nil {
-		slog.Error("Failed to publish setter_online", "error", err)
-		os.Exit(6)
-	}
 
 	// Subscribe to all set commands (deduplicated)
 	allCategories := slices.Concat(b.cfg.MyGekko.IntervalItems, b.cfg.MyGekko.MainItems)
 	slices.Sort(allCategories)
 	allCategories = slices.Compact(allCategories)
 	for _, category := range allCategories {
-		topic := fmt.Sprintf("%s/%s/+/set", b.gekkoName, category)
+		topic := fmt.Sprintf("%s/+/set", category)
 		slog.Info("subscribe", "topic", topic)
 		err := b.mqtt.Subscribe(topic, func(t string, payload []byte) {
 			b.handleSetCommand(t, payload)
