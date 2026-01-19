@@ -31,12 +31,16 @@ func NewMQTTClient(cfg MQTTConfig) (*MQTTClient, error) {
 	// Handle Unix socket connections
 	if parsedURL.Scheme == "unix" {
 		socketPath := parsedURL.Path
+		slog.Info("Using Unix socket", "path", socketPath)
 		opts.SetCustomOpenConnectionFn(func(uri *url.URL, options mqtt.ClientOptions) (net.Conn, error) {
+			slog.Debug("Opening Unix socket connection", "path", socketPath)
 			return net.Dial("unix", socketPath)
 		})
+		// paho needs a broker URL, use tcp://localhost as dummy since we override the connection
+		opts.AddBroker("tcp://localhost:1883")
+	} else {
+		opts.AddBroker(cfg.URL)
 	}
-
-	opts.AddBroker(cfg.URL)
 	opts.SetUsername(cfg.Username)
 	opts.SetPassword(cfg.Password)
 	clientID := cfg.ClientID
