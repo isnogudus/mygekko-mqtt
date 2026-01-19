@@ -24,8 +24,7 @@ go build -o mygekko-mqtt .
 For a smaller, optimized binary:
 
 ```bash
-go build -ldflags="-s -w" -o mygekko-mqtt .
-strip mygekko-mqtt
+CGO_ENABLED=0 go build -ldflags="-s -w" -o mygekko-mqtt .
 ```
 
 Cross-compile for other platforms:
