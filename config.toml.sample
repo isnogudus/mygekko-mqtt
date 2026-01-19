@@ -1,0 +1,36 @@
+# Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+log_level = "INFO"
+
+[mygekko]
+# MyGEKKO hostname or IP address
+host = ""
+# MyGEKKO API credentials
+username = ""
+password = ""
+# Polling interval in seconds
+interval = 5.0
+# Items that are polled every interval (fast-changing items)
+interval_items = ["blinds"]
+# Items that are polled every N rounds (slow-changing items)
+# Empty array means all items are polled in main rounds
+main_items = ["hotwater_systems", "roomtemps", "vents"]
+# Number of intervals between full main_items polls
+interval_rounds = 4
+
+[mqtt]
+# Root topic for all MQTT messages
+root = "mygekko"
+
+# TCP connection (TLS on port 8883)
+host = ""
+
+# OR Unix socket connection (comment out 'host' and uncomment 'socket')
+# socket = "/run/mosquitto/mosquitto.sock"
+
+# MQTT credentials
+username = ""
+password = ""
+
+# Client ID for MQTT connection (optional, default: "mygekko-mqtt")
+# Useful for running multiple instances or during development
+# client_id = "mygekko-mqtt-dev"
