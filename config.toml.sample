@@ -21,11 +21,17 @@ interval_rounds = 4
 # Root topic for all MQTT messages
 root = "mygekko"
 
-# TCP connection (TLS on port 8883)
-host = ""
-
-# OR Unix socket connection (comment out 'host' and uncomment 'socket')
-# socket = "/run/mosquitto/mosquitto.sock"
+# MQTT broker URL
+# Supported schemes:
+#   tcp://host:port      - Plain TCP (default port 1883)
+#   ssl://host:port      - TLS/SSL (default port 8883)
+#   unix:///path/to/sock - Unix socket
+#
+# Examples:
+#   url = "tcp://localhost:1883"
+#   url = "ssl://mqtt.example.com:8883"
+#   url = "unix:///run/mosquitto/mosquitto.sock"
+url = ""
 
 # MQTT credentials
 username = ""

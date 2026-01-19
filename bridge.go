@@ -76,33 +76,41 @@ func (b *Bridge) RunGetter() {
 		os.Exit(6)
 	}
 
-	slog.Info("Start MyGekko")
+	slog.Info("Start MyGekko polling")
 	ticker := time.NewTicker(time.Duration(b.cfg.MyGekko.Interval * float64(time.Second)))
 	defer ticker.Stop()
 
+	// Poll immediately on start, then on every tick
 	round := 0
+	poll := func() {
+		round++
+
+		// Always poll interval_items
+		if len(b.cfg.MyGekko.IntervalItems) > 0 {
+			slog.Info("Polling interval items", "items", b.cfg.MyGekko.IntervalItems)
+			b.pollCategories(b.cfg.MyGekko.IntervalItems)
+		}
+
+		// Poll main_items every N rounds
+		if round >= b.cfg.MyGekko.IntervalRounds {
+			round = 0
+			if len(b.cfg.MyGekko.MainItems) > 0 {
+				slog.Info("Polling main items", "items", b.cfg.MyGekko.MainItems)
+				b.pollCategories(b.cfg.MyGekko.MainItems)
+			}
+		}
+	}
+
+	// Initial poll immediately
+	poll()
+
 	for {
 		select {
 		case <-b.ctx.Done():
 			slog.Info("Getter stopped")
 			return
 		case <-ticker.C:
-			round++
-
-			// Always poll interval_items
-			if len(b.cfg.MyGekko.IntervalItems) > 0 {
-				slog.Debug("Polling interval items", "items", b.cfg.MyGekko.IntervalItems)
-				b.pollCategories(b.cfg.MyGekko.IntervalItems)
-			}
-
-			// Poll main_items every N rounds
-			if round >= b.cfg.MyGekko.IntervalRounds {
-				round = 0
-				if len(b.cfg.MyGekko.MainItems) > 0 {
-					slog.Debug("Polling main items", "items", b.cfg.MyGekko.MainItems)
-					b.pollCategories(b.cfg.MyGekko.MainItems)
-				}
-			}
+			poll()
 		}
 	}
 }

@@ -25,8 +25,7 @@ type MyGekkoConfig struct {
 
 type MQTTConfig struct {
 	Root     string `toml:"root"`
-	Host     string `toml:"host"`
-	Socket   string `toml:"socket"`
+	URL      string `toml:"url"`
 	Username string `toml:"username"`
 	Password string `toml:"password"`
 	ClientID string `toml:"client_id"`
@@ -80,8 +79,8 @@ func (c *Config) Validate() error {
 	}
 
 	// MQTT validation
-	if c.MQTT.Host == "" && c.MQTT.Socket == "" {
-		return fmt.Errorf("either mqtt.host or mqtt.socket is required")
+	if c.MQTT.URL == "" {
+		return fmt.Errorf("mqtt.url is required")
 	}
 	if c.MQTT.Root == "" {
 		return fmt.Errorf("mqtt.root is required")

@@ -19,6 +19,25 @@ A bridge that connects MyGEKKO home automation systems to MQTT, enabling integra
 go build -o mygekko-mqtt .
 ```
 
+### Production Build
+
+For a smaller, optimized binary:
+
+```bash
+go build -ldflags="-s -w" -o mygekko-mqtt .
+strip mygekko-mqtt
+```
+
+Cross-compile for other platforms:
+
+```bash
+# OpenBSD
+CGO_ENABLED=0 GOOS=openbsd GOARCH=amd64 go build -ldflags="-s -w" -o mygekko-mqtt-openbsd .
+
+# Linux
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o mygekko-mqtt-linux .
+```
+
 ## Configuration
 
 Copy the sample configuration and edit it:
@@ -54,11 +73,12 @@ interval_items = ["blinds", "lights"]
 main_items = ["vents", "energycosts"]
 
 [mqtt]
-# TCP connection (TLS on port 8883)
-host = "mqtt.example.com"
-
-# OR Unix socket connection
-# socket = "/run/mosquitto/mosquitto.sock"
+# MQTT broker URL
+# Supported schemes:
+#   tcp://host:port      - Plain TCP (default port 1883)
+#   ssl://host:port      - TLS/SSL (default port 8883)
+#   unix:///path/to/sock - Unix socket
+url = "ssl://mqtt.example.com:8883"
 
 # MQTT topic root prefix
 root = "mygekko"

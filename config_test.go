@@ -20,7 +20,7 @@ main_items = ["vents"]
 interval_rounds = 5
 
 [mqtt]
-host = "mqtt.example.com"
+url = "ssl://mqtt.example.com:8883"
 root = "test"
 username = "mqttuser"
 password = "mqttpass"
@@ -56,7 +56,7 @@ password = "pass"
 interval_items = ["blinds"]
 
 [mqtt]
-host = "mqtt.example.com"
+url = "tcp://mqtt.example.com:1883"
 root = "test"
 `
 	path := writeTempConfig(t, content)
@@ -96,14 +96,14 @@ func TestLoadConfig_InvalidTOML(t *testing.T) {
 func TestValidate_MissingMyGekkoHost(t *testing.T) {
 	cfg := &Config{
 		MyGekko: MyGekkoConfig{
-			Username:      "user",
-			Password:      "pass",
-			Interval:      5.0,
+			Username:       "user",
+			Password:       "pass",
+			Interval:       5.0,
 			IntervalRounds: 4,
-			IntervalItems: []string{"blinds"},
+			IntervalItems:  []string{"blinds"},
 		},
 		MQTT: MQTTConfig{
-			Host: "mqtt.example.com",
+			URL:  "tcp://mqtt.example.com:1883",
 			Root: "test",
 		},
 	}
@@ -120,14 +120,14 @@ func TestValidate_MissingMyGekkoHost(t *testing.T) {
 func TestValidate_MissingMyGekkoUsername(t *testing.T) {
 	cfg := &Config{
 		MyGekko: MyGekkoConfig{
-			Host:          "mygekko.example.com",
-			Password:      "pass",
-			Interval:      5.0,
+			Host:           "mygekko.example.com",
+			Password:       "pass",
+			Interval:       5.0,
 			IntervalRounds: 4,
-			IntervalItems: []string{"blinds"},
+			IntervalItems:  []string{"blinds"},
 		},
 		MQTT: MQTTConfig{
-			Host: "mqtt.example.com",
+			URL:  "tcp://mqtt.example.com:1883",
 			Root: "test",
 		},
 	}
@@ -141,14 +141,14 @@ func TestValidate_MissingMyGekkoUsername(t *testing.T) {
 func TestValidate_MissingMyGekkoPassword(t *testing.T) {
 	cfg := &Config{
 		MyGekko: MyGekkoConfig{
-			Host:          "mygekko.example.com",
-			Username:      "user",
-			Interval:      5.0,
+			Host:           "mygekko.example.com",
+			Username:       "user",
+			Interval:       5.0,
 			IntervalRounds: 4,
-			IntervalItems: []string{"blinds"},
+			IntervalItems:  []string{"blinds"},
 		},
 		MQTT: MQTTConfig{
-			Host: "mqtt.example.com",
+			URL:  "tcp://mqtt.example.com:1883",
 			Root: "test",
 		},
 	}
@@ -162,15 +162,15 @@ func TestValidate_MissingMyGekkoPassword(t *testing.T) {
 func TestValidate_InvalidInterval(t *testing.T) {
 	cfg := &Config{
 		MyGekko: MyGekkoConfig{
-			Host:          "mygekko.example.com",
-			Username:      "user",
-			Password:      "pass",
-			Interval:      -1.0,
+			Host:           "mygekko.example.com",
+			Username:       "user",
+			Password:       "pass",
+			Interval:       -1.0,
 			IntervalRounds: 4,
-			IntervalItems: []string{"blinds"},
+			IntervalItems:  []string{"blinds"},
 		},
 		MQTT: MQTTConfig{
-			Host: "mqtt.example.com",
+			URL:  "tcp://mqtt.example.com:1883",
 			Root: "test",
 		},
 	}
@@ -184,15 +184,15 @@ func TestValidate_InvalidInterval(t *testing.T) {
 func TestValidate_InvalidIntervalRounds(t *testing.T) {
 	cfg := &Config{
 		MyGekko: MyGekkoConfig{
-			Host:          "mygekko.example.com",
-			Username:      "user",
-			Password:      "pass",
-			Interval:      5.0,
+			Host:           "mygekko.example.com",
+			Username:       "user",
+			Password:       "pass",
+			Interval:       5.0,
 			IntervalRounds: 0,
-			IntervalItems: []string{"blinds"},
+			IntervalItems:  []string{"blinds"},
 		},
 		MQTT: MQTTConfig{
-			Host: "mqtt.example.com",
+			URL:  "tcp://mqtt.example.com:1883",
 			Root: "test",
 		},
 	}
@@ -206,14 +206,14 @@ func TestValidate_InvalidIntervalRounds(t *testing.T) {
 func TestValidate_NoItems(t *testing.T) {
 	cfg := &Config{
 		MyGekko: MyGekkoConfig{
-			Host:          "mygekko.example.com",
-			Username:      "user",
-			Password:      "pass",
-			Interval:      5.0,
+			Host:           "mygekko.example.com",
+			Username:       "user",
+			Password:       "pass",
+			Interval:       5.0,
 			IntervalRounds: 4,
 		},
 		MQTT: MQTTConfig{
-			Host: "mqtt.example.com",
+			URL:  "tcp://mqtt.example.com:1883",
 			Root: "test",
 		},
 	}
@@ -224,15 +224,15 @@ func TestValidate_NoItems(t *testing.T) {
 	}
 }
 
-func TestValidate_MissingMQTTHostAndSocket(t *testing.T) {
+func TestValidate_MissingMQTTURL(t *testing.T) {
 	cfg := &Config{
 		MyGekko: MyGekkoConfig{
-			Host:          "mygekko.example.com",
-			Username:      "user",
-			Password:      "pass",
-			Interval:      5.0,
+			Host:           "mygekko.example.com",
+			Username:       "user",
+			Password:       "pass",
+			Interval:       5.0,
 			IntervalRounds: 4,
-			IntervalItems: []string{"blinds"},
+			IntervalItems:  []string{"blinds"},
 		},
 		MQTT: MQTTConfig{
 			Root: "test",
@@ -241,44 +241,44 @@ func TestValidate_MissingMQTTHostAndSocket(t *testing.T) {
 
 	err := cfg.Validate()
 	if err == nil {
-		t.Error("expected error for missing mqtt.host and mqtt.socket")
+		t.Error("expected error for missing mqtt.url")
 	}
 }
 
-func TestValidate_MQTTSocketOnly(t *testing.T) {
+func TestValidate_MQTTUnixSocket(t *testing.T) {
 	cfg := &Config{
 		MyGekko: MyGekkoConfig{
-			Host:          "mygekko.example.com",
-			Username:      "user",
-			Password:      "pass",
-			Interval:      5.0,
+			Host:           "mygekko.example.com",
+			Username:       "user",
+			Password:       "pass",
+			Interval:       5.0,
 			IntervalRounds: 4,
-			IntervalItems: []string{"blinds"},
+			IntervalItems:  []string{"blinds"},
 		},
 		MQTT: MQTTConfig{
-			Socket: "/run/mosquitto/mosquitto.sock",
-			Root:   "test",
+			URL:  "unix:///run/mosquitto/mosquitto.sock",
+			Root: "test",
 		},
 	}
 
 	err := cfg.Validate()
 	if err != nil {
-		t.Errorf("unexpected error with socket only: %v", err)
+		t.Errorf("unexpected error with unix socket URL: %v", err)
 	}
 }
 
 func TestValidate_MissingMQTTRoot(t *testing.T) {
 	cfg := &Config{
 		MyGekko: MyGekkoConfig{
-			Host:          "mygekko.example.com",
-			Username:      "user",
-			Password:      "pass",
-			Interval:      5.0,
+			Host:           "mygekko.example.com",
+			Username:       "user",
+			Password:       "pass",
+			Interval:       5.0,
 			IntervalRounds: 4,
-			IntervalItems: []string{"blinds"},
+			IntervalItems:  []string{"blinds"},
 		},
 		MQTT: MQTTConfig{
-			Host: "mqtt.example.com",
+			URL: "tcp://mqtt.example.com:1883",
 		},
 	}
 
@@ -291,16 +291,16 @@ func TestValidate_MissingMQTTRoot(t *testing.T) {
 func TestValidate_ValidConfig(t *testing.T) {
 	cfg := &Config{
 		MyGekko: MyGekkoConfig{
-			Host:          "mygekko.example.com",
-			Username:      "user",
-			Password:      "pass",
-			Interval:      5.0,
+			Host:           "mygekko.example.com",
+			Username:       "user",
+			Password:       "pass",
+			Interval:       5.0,
 			IntervalRounds: 4,
-			IntervalItems: []string{"blinds"},
-			MainItems:     []string{"vents"},
+			IntervalItems:  []string{"blinds"},
+			MainItems:      []string{"vents"},
 		},
 		MQTT: MQTTConfig{
-			Host: "mqtt.example.com",
+			URL:  "ssl://mqtt.example.com:8883",
 			Root: "test",
 		},
 	}

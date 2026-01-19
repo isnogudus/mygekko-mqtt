@@ -20,18 +20,23 @@ type MQTTClient struct {
 func NewMQTTClient(cfg MQTTConfig) (*MQTTClient, error) {
 	opts := mqtt.NewClientOptions()
 
-	// Configure connection: Unix socket or TCP
-	if cfg.Socket != "" {
-		slog.Info("Connecting to MQTT via Unix socket", "socket", cfg.Socket)
-		opts.SetCustomOpenConnectionFn(func(uri *url.URL, options mqtt.ClientOptions) (net.Conn, error) {
-			return net.Dial("unix", cfg.Socket)
-		})
-		opts.AddBroker("unix://" + cfg.Socket)
-	} else {
-		slog.Info("Connecting to MQTT via TCP", "host", cfg.Host)
-		opts.AddBroker(fmt.Sprintf("ssl://%s:8883", cfg.Host))
+	// Parse the URL to determine connection type
+	parsedURL, err := url.Parse(cfg.URL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid MQTT URL: %w", err)
 	}
 
+	slog.Info("Connecting to MQTT", "url", cfg.URL)
+
+	// Handle Unix socket connections
+	if parsedURL.Scheme == "unix" {
+		socketPath := parsedURL.Path
+		opts.SetCustomOpenConnectionFn(func(uri *url.URL, options mqtt.ClientOptions) (net.Conn, error) {
+			return net.Dial("unix", socketPath)
+		})
+	}
+
+	opts.AddBroker(cfg.URL)
 	opts.SetUsername(cfg.Username)
 	opts.SetPassword(cfg.Password)
 	clientID := cfg.ClientID

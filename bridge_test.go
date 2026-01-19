@@ -237,7 +237,7 @@ func TestNewBridge(t *testing.T) {
 			IntervalItems:  []string{"blinds"},
 		},
 		MQTT: MQTTConfig{
-			Host: "mqtt.example.com",
+			URL:  "tcp://mqtt.example.com:1883",
 			Root: "test",
 		},
 	}
