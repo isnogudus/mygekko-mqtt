@@ -1,10 +1,13 @@
 module github.com/isnogudus/mygekko-mqtt
 
-go 1.25.5
+go 1.24.0
 
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/eclipse/paho.mqtt.golang v1.5.1
+)
+
+require (
 	github.com/gorilla/websocket v1.5.3 // indirect
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
