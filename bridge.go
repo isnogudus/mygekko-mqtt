@@ -74,7 +74,7 @@ func (b *Bridge) RunGetter() {
 
 		// Always poll interval_items
 		if len(b.cfg.MyGekko.IntervalItems) > 0 {
-			slog.Info("Polling interval items", "items", b.cfg.MyGekko.IntervalItems)
+			slog.Debug("Polling interval items", "items", b.cfg.MyGekko.IntervalItems)
 			b.pollCategories(b.cfg.MyGekko.IntervalItems)
 		}
 
@@ -240,10 +240,12 @@ func (b *Bridge) processItem(category, item string, sumstate any) {
 func (b *Bridge) RunSetter() {
 	slog.Info("Starting setter...")
 
-	// Subscribe to all set commands (deduplicated)
-	allCategories := slices.Concat(b.cfg.MyGekko.IntervalItems, b.cfg.MyGekko.MainItems)
+	// Subscribe to all set commands for all known categories
+	allCategories := make([]string, 0, len(b.fieldDef))
+	for category := range b.fieldDef {
+		allCategories = append(allCategories, category)
+	}
 	slices.Sort(allCategories)
-	allCategories = slices.Compact(allCategories)
 	for _, category := range allCategories {
 		topic := fmt.Sprintf("%s/+/set", category)
 		slog.Info("subscribe", "topic", topic)
