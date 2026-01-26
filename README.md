@@ -13,29 +13,33 @@ A bridge that connects MyGEKKO home automation systems to MQTT, enabling integra
 - MQTT Last Will and Testament (LWT) for online/offline status
 - Configurable polling intervals
 - Structured logging with configurable log levels
+- Security sandboxing (chroot, privilege dropping, OpenBSD pledge)
+
+## Requirements
+
+- Go 1.24.0
+- MyGEKKO device with API access
+- MQTT broker (Mosquitto, etc.)
 
 ## Installation
 
 ```bash
-go build -o mygekko-mqtt .
+make build
 ```
 
-### Production Build
-
-For a smaller, optimized binary:
+### Cross-compilation
 
 ```bash
-CGO_ENABLED=0 go build -ldflags="-s -w" -o mygekko-mqtt .
+make build-all      # All platforms
+make build-linux    # Linux amd64 + arm64
+make build-openbsd  # OpenBSD amd64
+make build-darwin   # macOS amd64 + arm64
 ```
 
-Cross-compile for other platforms:
+Or manually:
 
 ```bash
-# OpenBSD
-CGO_ENABLED=0 GOOS=openbsd GOARCH=amd64 go build -ldflags="-s -w" -o mygekko-mqtt-openbsd .
-
-# Linux
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o mygekko-mqtt-linux .
+CGO_ENABLED=0 go build -ldflags="-s -w" -o mygekko-mqtt
 ```
 
 ## Configuration
@@ -91,7 +95,22 @@ password = "mqttpass"
 client_id = "mygekko-mqtt"
 ```
 
-## Usage
+### Security Sandboxing
+
+The application supports chroot, privilege dropping, and OpenBSD pledge for defense in depth:
+
+```toml
+[sandbox]
+chroot = "/var/empty"   # chroot directory (requires root)
+user = "_mygekko"       # drop to this user after chroot
+group = "_mygekko"      # drop to this group after chroot
+```
+
+On OpenBSD, the application restricts itself to `stdio rpath inet dns unix` pledges.
+
+The sandbox is applied after establishing all network connections (MyGEKKO API, MQTT), so DNS resolution works normally. After sandboxing, only the existing sockets are used.
+
+## Running
 
 ```bash
 # Using default config.toml in current directory
@@ -99,6 +118,117 @@ client_id = "mygekko-mqtt"
 
 # Specify config file path
 ./mygekko-mqtt -config /etc/mygekko-mqtt/config.toml
+```
+
+The application follows a "let it crash" philosophy - on errors, it exits with a specific code and should be restarted by a supervisor (systemd, runit, Docker, etc.).
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Clean shutdown |
+| 1 | Configuration or bridge initialization error |
+| 2 | User/group lookup error |
+| 3 | Sandbox error (chroot/setuid/pledge) |
+| 4 | MyGEKKO connection error (name or definitions) |
+| 5 | MQTT connection error |
+| 6 | MQTT publish error |
+| 7 | MQTT subscribe error |
+| 8 | Invalid MQTT topic format |
+| 9 | MyGEKKO SetValue command error |
+| 10 | MQTT connection lost |
+| 11 | MyGEKKO connection lost during polling |
+
+### Systemd Service
+
+```ini
+[Unit]
+Description=MyGEKKO MQTT Bridge
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/mygekko-mqtt -config /etc/mygekko-mqtt/config.toml
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Runit Service
+
+Create `/etc/sv/mygekko-mqtt/run`:
+
+```bash
+#!/bin/sh
+exec /usr/local/bin/mygekko-mqtt -config /etc/mygekko-mqtt/config.toml 2>&1
+```
+
+## Installation on OpenBSD
+
+### Create service user
+
+```bash
+useradd -s /sbin/nologin -d /var/empty -g =uid -c "MyGEKKO MQTT" _mygekko
+```
+
+### Copy binary and config
+
+```bash
+cp mygekko-mqtt-openbsd-amd64 /usr/local/bin/mygekko-mqtt
+chmod 755 /usr/local/bin/mygekko-mqtt
+
+mkdir -p /etc/mygekko-mqtt
+cp config.toml /etc/mygekko-mqtt/config.toml
+chmod 640 /etc/mygekko-mqtt/config.toml
+chown root:_mygekko /etc/mygekko-mqtt/config.toml
+```
+
+Add sandbox settings to `/etc/mygekko-mqtt/config.toml`:
+
+```toml
+[sandbox]
+chroot = "/var/empty"
+user = "_mygekko"
+group = "_mygekko"
+```
+
+### rc.d
+
+Create `/etc/rc.d/mygekkomqtt`:
+
+```bash
+#!/bin/ksh
+
+daemon="/usr/local/bin/mygekko-mqtt"
+daemon_flags="-config /etc/mygekko-mqtt/config.toml"
+
+. /etc/rc.d/rc.subr
+
+rc_bg=YES
+
+rc_cmd $1
+```
+
+```bash
+chmod 755 /etc/rc.d/mygekkomqtt
+rcctl enable mygekkomqtt
+rcctl start mygekkomqtt
+```
+
+### Runit (alternative)
+
+```bash
+mkdir -p /etc/sv/mygekko-mqtt
+
+cat > /etc/sv/mygekko-mqtt/run << 'EOF'
+#!/bin/sh
+exec /usr/local/bin/mygekko-mqtt -config /etc/mygekko-mqtt/config.toml 2>&1
+EOF
+
+chmod 755 /etc/sv/mygekko-mqtt/run
+ln -s /etc/sv/mygekko-mqtt /var/service/
 ```
 
 ## MQTT Topics
@@ -133,78 +263,12 @@ Example:
 mygekko/MyHome/blinds/item0/set    <- "P50"   # Set position to 50%
 ```
 
-## Exit Codes
-
-The application uses distinct exit codes for different failure scenarios, making it suitable for process supervisors like runit or systemd:
-
-| Code | Description |
-|------|-------------|
-| 1 | Configuration, MQTT connection, or bridge initialization error |
-| 2 | Failed to load field definitions from MyGEKKO |
-| 5 | Value parsing error |
-| 6 | MQTT publish error |
-| 7 | MQTT subscribe error |
-| 8 | Invalid MQTT topic format |
-| 9 | MyGEKKO SetValue command error |
-| 10 | MQTT connection lost |
-| 11 | MyGEKKO connection lost during polling |
-
-## Running with runit
-
-Create a run script at `/etc/sv/mygekko-mqtt/run`:
-
-```bash
-#!/bin/sh
-exec 2>&1
-exec chpst -u mygekko /usr/local/bin/mygekko-mqtt -config /etc/mygekko-mqtt/config.toml
-```
-
-Enable the service:
-
-```bash
-ln -s /etc/sv/mygekko-mqtt /var/service/
-```
-
-## Running with systemd
-
-Create `/etc/systemd/system/mygekko-mqtt.service`:
-
-```ini
-[Unit]
-Description=MyGEKKO MQTT Bridge
-After=network.target
-
-[Service]
-Type=simple
-User=mygekko
-ExecStart=/usr/local/bin/mygekko-mqtt -config /etc/mygekko-mqtt/config.toml
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-
-```bash
-systemctl enable mygekko-mqtt
-systemctl start mygekko-mqtt
-```
-
 ## Development
 
 ### Running Tests
 
 ```bash
-go test -v ./...
-```
-
-### Running with Development Config
-
-```bash
-# Use a separate client_id to run alongside production
-./mygekko-mqtt -config config-dev.toml
+make test
 ```
 
 ## License

@@ -24,14 +24,26 @@ func main() {
 	SetupLogger(cfg.LogLevel)
 	slog.Info("Starting mygekko-mqtt bridge")
 
-	// Create MyGEKKO client
+	// Lookup user/group before chroot (needs /etc/passwd, /etc/group)
+	uid, err := lookupUID(cfg.Sandbox.User)
+	if err != nil {
+		slog.Error("Failed to lookup user", "error", err)
+		os.Exit(2)
+	}
+	gid, err := lookupGID(cfg.Sandbox.Group)
+	if err != nil {
+		slog.Error("Failed to lookup group", "error", err)
+		os.Exit(2)
+	}
+
+	// Create MyGEKKO client and load data before sandbox (needs DNS resolution)
 	gekko := NewMyGekkoClient(cfg.MyGekko)
 
 	// Get gekko name first (needed for MQTT LWT topic)
 	gekkoName, err := gekko.GetGekkoName()
 	if err != nil {
 		slog.Error("Failed to get gekko name", "error", err)
-		os.Exit(2)
+		os.Exit(4)
 	}
 	slog.Info("Gekko name", "name", gekkoName)
 
@@ -39,16 +51,23 @@ func main() {
 	fieldDefinitions, err := LoadFieldDefinitions(gekko)
 	if err != nil {
 		slog.Error("Failed to parse definitions", "error", err)
-		os.Exit(2)
+		os.Exit(4)
 	}
 
 	// Connect to MQTT with LWT (Last Will Testament)
 	mqtt, err := NewMQTTClient(cfg.MQTT, gekkoName)
 	if err != nil {
 		slog.Error("Failed to connect to MQTT", "error", err)
-		os.Exit(1)
+		os.Exit(5)
 	}
 	defer mqtt.Disconnect()
+
+	// Sandbox: chroot, drop privileges, pledge
+	// Done after connections are established - only needs existing sockets
+	if err := sandbox(cfg.Sandbox.Chroot, uid, gid); err != nil {
+		slog.Error("Failed to sandbox", "error", err)
+		os.Exit(3)
+	}
 
 	// Create and start bridge
 	bridge, err := NewBridge(cfg, gekko, mqtt, fieldDefinitions, gekkoName)

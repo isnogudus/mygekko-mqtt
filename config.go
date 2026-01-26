@@ -3,14 +3,23 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/user"
+	"strconv"
 
 	"github.com/BurntSushi/toml"
 )
 
 type Config struct {
-	LogLevel string       `toml:"log_level"`
+	LogLevel string        `toml:"log_level"`
 	MyGekko  MyGekkoConfig `toml:"mygekko"`
 	MQTT     MQTTConfig    `toml:"mqtt"`
+	Sandbox  SandboxConfig `toml:"sandbox"`
+}
+
+type SandboxConfig struct {
+	Chroot string `toml:"chroot"`
+	User   string `toml:"user"`
+	Group  string `toml:"group"`
 }
 
 type MyGekkoConfig struct {
@@ -87,4 +96,32 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func lookupUID(name string) (int, error) {
+	if name == "" {
+		return 0, nil
+	}
+	if id, err := strconv.Atoi(name); err == nil {
+		return id, nil
+	}
+	u, err := user.Lookup(name)
+	if err != nil {
+		return 0, fmt.Errorf("user %s: %w", name, err)
+	}
+	return strconv.Atoi(u.Uid)
+}
+
+func lookupGID(name string) (int, error) {
+	if name == "" {
+		return 0, nil
+	}
+	if id, err := strconv.Atoi(name); err == nil {
+		return id, nil
+	}
+	g, err := user.LookupGroup(name)
+	if err != nil {
+		return 0, fmt.Errorf("group %s: %w", name, err)
+	}
+	return strconv.Atoi(g.Gid)
 }

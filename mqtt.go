@@ -94,7 +94,7 @@ func NewMQTTClient(cfg MQTTConfig, gekkoName string) (*MQTTClient, error) {
 
 func (m *MQTTClient) Publish(topic string, value any) error {
 	fullTopic := fmt.Sprintf("%s/%s", m.root, topic)
-	token := m.client.Publish(fullTopic, 0, false, fmt.Sprintf("%v", value))
+	token := m.client.Publish(fullTopic, 0, true, fmt.Sprintf("%v", value))
 	token.Wait()
 	return token.Error()
 }
@@ -105,7 +105,7 @@ func (m *MQTTClient) PublishJSON(topic string, data any) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal JSON: %w", err)
 	}
-	token := m.client.Publish(fullTopic, 0, false, jsonBytes)
+	token := m.client.Publish(fullTopic, 0, true, jsonBytes)
 	token.Wait()
 	return token.Error()
 }

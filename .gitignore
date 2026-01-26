@@ -1,4 +1,5 @@
 config.toml
 mygekko-mqtt
+mygekko-mqtt-*
 definition.json
 hotwater_systems*

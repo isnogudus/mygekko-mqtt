@@ -40,3 +40,9 @@ password = ""
 # Client ID for MQTT connection (optional, default: "mygekko-mqtt")
 # Useful for running multiple instances or during development
 # client_id = "mygekko-mqtt-dev"
+
+# Sandbox settings (optional, requires root to use chroot/user/group)
+[sandbox]
+# chroot = "/var/empty"
+# user = "_mygekko"
+# group = "_mygekko"

@@ -68,7 +68,8 @@ func (b *Bridge) RunGetter() {
 	defer ticker.Stop()
 
 	// Poll immediately on start, then on every tick
-	round := 0
+	// Start at IntervalRounds so first poll() fetches everything
+	round := b.cfg.MyGekko.IntervalRounds
 	poll := func() {
 		round++
 
