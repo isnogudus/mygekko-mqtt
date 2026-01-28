@@ -37,7 +37,11 @@ func main() {
 	}
 
 	// Create MyGEKKO client and load data before sandbox (needs DNS resolution)
-	gekko := NewMyGekkoClient(cfg.MyGekko)
+	gekko, err := NewMyGekkoClient(cfg.MyGekko)
+	if err != nil {
+		slog.Error("Failed to create MyGEKKO client", "error", err)
+		os.Exit(4)
+	}
 
 	// Get gekko name first (needed for MQTT LWT topic)
 	gekkoName, err := gekko.GetGekkoName()

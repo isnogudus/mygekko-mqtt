@@ -8,15 +8,18 @@ import (
 
 func TestNewMyGekkoClient(t *testing.T) {
 	cfg := MyGekkoConfig{
-		Host:     "mygekko.example.com",
+		Host:     "127.0.0.1",
 		Username: "testuser",
 		Password: "testpass",
 	}
 
-	client := NewMyGekkoClient(cfg)
+	client, err := NewMyGekkoClient(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-	if client.baseURL.Host != "mygekko.example.com" {
-		t.Errorf("expected host 'mygekko.example.com', got '%s'", client.baseURL.Host)
+	if client.baseURL.Host != "127.0.0.1" {
+		t.Errorf("expected host '127.0.0.1', got '%s'", client.baseURL.Host)
 	}
 	if client.baseURL.Scheme != "http" {
 		t.Errorf("expected scheme 'http', got '%s'", client.baseURL.Scheme)
@@ -33,15 +36,18 @@ func TestNewMyGekkoClient(t *testing.T) {
 }
 
 func TestBuildURL_Basic(t *testing.T) {
-	client := NewMyGekkoClient(MyGekkoConfig{
-		Host:     "mygekko.example.com",
+	client, err := NewMyGekkoClient(MyGekkoConfig{
+		Host:     "192.168.1.1",
 		Username: "user",
 		Password: "pass",
 	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	result := client.buildURL("var/status", nil)
 
-	if !strings.Contains(result, "http://mygekko.example.com/api/v1/var/status") {
+	if !strings.Contains(result, "http://192.168.1.1/api/v1/var/status") {
 		t.Errorf("unexpected URL base: %s", result)
 	}
 	if !strings.Contains(result, "username=user") {
@@ -53,11 +59,14 @@ func TestBuildURL_Basic(t *testing.T) {
 }
 
 func TestBuildURL_WithExtraParams(t *testing.T) {
-	client := NewMyGekkoClient(MyGekkoConfig{
-		Host:     "mygekko.example.com",
+	client, err := NewMyGekkoClient(MyGekkoConfig{
+		Host:     "192.168.1.1",
 		Username: "user",
 		Password: "pass",
 	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	params := url.Values{}
 	params.Set("value", "42")
@@ -73,11 +82,14 @@ func TestBuildURL_WithExtraParams(t *testing.T) {
 }
 
 func TestBuildURL_SpecialCharacters(t *testing.T) {
-	client := NewMyGekkoClient(MyGekkoConfig{
-		Host:     "mygekko.example.com",
+	client, err := NewMyGekkoClient(MyGekkoConfig{
+		Host:     "192.168.1.1",
 		Username: "user@domain",
 		Password: "p@ss&word=special",
 	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	result := client.buildURL("var/status", nil)
 
@@ -91,11 +103,14 @@ func TestBuildURL_SpecialCharacters(t *testing.T) {
 }
 
 func TestBuildURL_MultipleExtraParams(t *testing.T) {
-	client := NewMyGekkoClient(MyGekkoConfig{
-		Host:     "mygekko.example.com",
+	client, err := NewMyGekkoClient(MyGekkoConfig{
+		Host:     "192.168.1.1",
 		Username: "user",
 		Password: "pass",
 	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	params := url.Values{}
 	params.Set("value", "100")
@@ -112,11 +127,14 @@ func TestBuildURL_MultipleExtraParams(t *testing.T) {
 }
 
 func TestBuildURL_EndpointPath(t *testing.T) {
-	client := NewMyGekkoClient(MyGekkoConfig{
-		Host:     "mygekko.example.com",
+	client, err := NewMyGekkoClient(MyGekkoConfig{
+		Host:     "192.168.1.1",
 		Username: "user",
 		Password: "pass",
 	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	testCases := []struct {
 		endpoint string
@@ -137,11 +155,14 @@ func TestBuildURL_EndpointPath(t *testing.T) {
 }
 
 func TestBuildURL_ValueWithSpaces(t *testing.T) {
-	client := NewMyGekkoClient(MyGekkoConfig{
-		Host:     "mygekko.example.com",
+	client, err := NewMyGekkoClient(MyGekkoConfig{
+		Host:     "192.168.1.1",
 		Username: "user",
 		Password: "pass",
 	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	params := url.Values{}
 	params.Set("value", "hello world")

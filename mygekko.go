@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -18,10 +19,19 @@ type MyGekkoClient struct {
 	httpClient *http.Client
 }
 
-func NewMyGekkoClient(cfg MyGekkoConfig) *MyGekkoClient {
+func NewMyGekkoClient(cfg MyGekkoConfig) (*MyGekkoClient, error) {
+	// Resolve hostname to IP at startup (needed for chroot/sandbox)
+	host := cfg.Host
+	if ips, err := net.LookupHost(host); err == nil && len(ips) > 0 {
+		slog.Info("Resolved hostname", "host", host, "ip", ips[0])
+		host = ips[0]
+	} else if err != nil {
+		return nil, fmt.Errorf("DNS lookup failed for %s: %w", host, err)
+	}
+
 	baseURL := &url.URL{
 		Scheme: "http",
-		Host:   cfg.Host,
+		Host:   host,
 		Path:   "/api/v1/",
 	}
 
@@ -32,7 +42,7 @@ func NewMyGekkoClient(cfg MyGekkoConfig) *MyGekkoClient {
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
 		},
-	}
+	}, nil
 }
 
 func (c *MyGekkoClient) buildURL(endpoint string, extraParams url.Values) string {
