@@ -1,8 +1,8 @@
 .PHONY: build clean test
 
 BINARY := mygekko-mqtt
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-LDFLAGS := -ldflags "-s -w"
+COMMIT := $(shell git describe --tags --always --dirty 2>/dev/null || echo "unknown")
+LDFLAGS := -ldflags "-s -w -X main.commit=$(COMMIT)"
 
 build:
 	CGO_ENABLED=0 go build $(LDFLAGS) -o $(BINARY) .

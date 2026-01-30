@@ -2,16 +2,26 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
+// Set by -ldflags at build time
+var commit = "unknown"
+
 func main() {
 	// Parse command line flags
 	configPath := flag.String("config", "config.toml", "path to config file")
+	showVersion := flag.Bool("version", false, "show version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(commit)
+		return
+	}
 
 	// Load configuration
 	cfg, err := LoadConfig(*configPath)
