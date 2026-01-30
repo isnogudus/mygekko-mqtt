@@ -78,6 +78,7 @@ func NewMQTTClient(cfg MQTTConfig, gekkoName string) (*MQTTClient, error) {
 		token.Wait()
 		if token.Error() != nil {
 			slog.Error("Failed to publish online status", "error", token.Error())
+			os.Exit(6)
 		}
 	})
 
