@@ -32,7 +32,7 @@ func main() {
 
 	// Setup logging
 	SetupLogger(cfg.LogLevel)
-	slog.Info("Starting mygekko-mqtt bridge")
+	slog.Info("Starting mygekko-mqtt bridge", "commit", commit)
 
 	// Lookup user/group before chroot (needs /etc/passwd, /etc/group)
 	uid, err := lookupUID(cfg.Sandbox.User)
