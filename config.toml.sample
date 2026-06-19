@@ -16,6 +16,21 @@ interval_items = ["blinds"]
 main_items = ["hotwater_systems", "roomtemps", "vents"]
 # Number of intervals between full main_items polls
 interval_rounds = 4
+# Minimum gap in seconds between throttled set commands sent to MyGEKKO.
+# MyGEKKO processes commands single-threaded and silently drops a second
+# command that arrives too quickly after the first, so incoming MQTT set
+# commands are serialized and spaced by at least this interval (default: 20.0)
+command_interval = 20.0
+# Per-category partition into throttled and immediate commands. For a category
+# listed here, a command is throttled (spaced by command_interval) only if its
+# payload starts with one of the given prefixes; every other command is sent
+# immediately, even preempting an active throttle wait (e.g. a blind STOP).
+# Categories not listed here are throttled entirely. Prefix match is
+# case-sensitive.
+# Example: blind position commands ("P50", "P75", ...) are throttled, while
+# manual UP/DOWN/STOP go through instantly.
+# [mygekko.throttle_prefixes]
+# blinds = ["P"]
 
 [mqtt]
 # Root topic for all MQTT messages

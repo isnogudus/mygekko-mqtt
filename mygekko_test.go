@@ -1,10 +1,54 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 )
+
+func TestSetValue_ResponseHandling(t *testing.T) {
+	cases := []struct {
+		name    string
+		body    string
+		status  int
+		wantErr bool
+	}{
+		{"ok", "OK", http.StatusOK, false},
+		{"empty json object", "{}", http.StatusOK, false},
+		{"empty body", "", http.StatusOK, false},
+		{"whitespace wrapped json", "  {}\n", http.StatusOK, false},
+		{"unexpected body", "ERROR", http.StatusOK, true},
+		{"http error", "OK", http.StatusInternalServerError, true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer srv.Close()
+
+			base, _ := url.Parse(srv.URL + "/api/v1/")
+			c := &MyGekkoClient{
+				baseURL:    base,
+				username:   "u",
+				password:   "p",
+				httpClient: srv.Client(),
+			}
+
+			err := c.SetValue("blinds", "item14", "P70")
+			if tc.wantErr && err == nil {
+				t.Errorf("expected error for body %q (status %d), got nil", tc.body, tc.status)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("expected success for body %q (status %d), got %v", tc.body, tc.status, err)
+			}
+		})
+	}
+}
 
 func TestNewMyGekkoClient(t *testing.T) {
 	cfg := MyGekkoConfig{

@@ -23,13 +23,20 @@ type SandboxConfig struct {
 }
 
 type MyGekkoConfig struct {
-	Host           string   `toml:"host"`
-	Username       string   `toml:"username"`
-	Password       string   `toml:"password"`
-	Interval       float64  `toml:"interval"`
-	IntervalItems  []string `toml:"interval_items"`
-	MainItems      []string `toml:"main_items"`
-	IntervalRounds int      `toml:"interval_rounds"`
+	Host            string   `toml:"host"`
+	Username        string   `toml:"username"`
+	Password        string   `toml:"password"`
+	Interval        float64  `toml:"interval"`
+	IntervalItems   []string `toml:"interval_items"`
+	MainItems       []string `toml:"main_items"`
+	IntervalRounds  int      `toml:"interval_rounds"`
+	CommandInterval float64  `toml:"command_interval"`
+	// ThrottlePrefixes partitions commands per category into throttled and
+	// immediate. For a category listed here, a command is throttled only if its
+	// payload starts with one of the given prefixes (e.g. blinds "P50"); every
+	// other command (e.g. a STOP) is sent immediately. Categories not listed
+	// here are throttled entirely.
+	ThrottlePrefixes map[string][]string `toml:"throttle_prefixes"`
 }
 
 type MQTTConfig struct {
@@ -58,6 +65,9 @@ func LoadConfig(path string) (*Config, error) {
 	if cfg.MyGekko.IntervalRounds == 0 {
 		cfg.MyGekko.IntervalRounds = 4
 	}
+	if cfg.MyGekko.CommandInterval == 0 {
+		cfg.MyGekko.CommandInterval = 20.0
+	}
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -82,6 +92,9 @@ func (c *Config) Validate() error {
 	}
 	if c.MyGekko.IntervalRounds <= 0 {
 		return fmt.Errorf("mygekko.interval_rounds must be positive")
+	}
+	if c.MyGekko.CommandInterval < 0 {
+		return fmt.Errorf("mygekko.command_interval must not be negative")
 	}
 	if len(c.MyGekko.IntervalItems) == 0 && len(c.MyGekko.MainItems) == 0 {
 		return fmt.Errorf("at least one of mygekko.interval_items or mygekko.main_items is required")

@@ -70,11 +70,27 @@ interval = 5.0
 # Number of interval rounds before polling main_items (default: 4)
 interval_rounds = 4
 
+# Minimum gap in seconds between throttled set commands sent to MyGEKKO (default: 20.0)
+# MyGEKKO processes commands single-threaded and silently drops a second
+# command that arrives too quickly after the first. Incoming MQTT set commands
+# are therefore serialized and spaced by at least this interval.
+command_interval = 20.0
+
 # Categories to poll every interval (e.g., fast-changing values)
 interval_items = ["blinds", "lights"]
 
 # Categories to poll less frequently (every interval_rounds)
 main_items = ["vents", "energycosts"]
+
+# Per-category partition into throttled and immediate commands. For a listed
+# category, a command is throttled (spaced by command_interval) only if its
+# payload starts with one of the given prefixes; every other command is sent
+# immediately and even preempts an active throttle wait (e.g. a blind STOP).
+# Categories not listed here are throttled entirely. Prefix match is
+# case-sensitive. Optional. Must be the last entry in [mygekko] (it is a subtable).
+[mygekko.throttle_prefixes]
+# Blind position commands ("P50", "P75", ...) are throttled; UP/DOWN/STOP are immediate.
+blinds = ["P"]
 
 [mqtt]
 # MQTT broker URL
@@ -134,10 +150,12 @@ The application follows a "let it crash" philosophy - on errors, it exits with a
 | 5 | MQTT connection error |
 | 6 | MQTT publish error |
 | 7 | MQTT subscribe error |
-| 8 | Invalid MQTT topic format |
-| 9 | MyGEKKO SetValue command error |
 | 10 | MQTT connection lost |
 | 11 | MyGEKKO connection lost during polling |
+
+Note: an invalid set topic or a failed `SetValue` command (formerly exit codes 8
+and 9) is now logged and skipped instead of terminating the bridge, so a single
+bad command no longer drops the other commands still queued behind it.
 
 ### Systemd Service
 

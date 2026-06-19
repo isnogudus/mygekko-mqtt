@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 )
 
 // MockMQTT implements MQTTPublisher for testing
@@ -427,7 +428,7 @@ func TestProcessItem_SkipsNullFields(t *testing.T) {
 	fieldDefs := map[string][]FieldDef{
 		"blinds": {
 			{Name: "position", Type: "int"},
-			{Name: "", Type: ""},        // null/reserved field
+			{Name: "", Type: ""}, // null/reserved field
 			{Name: "angle", Type: "float"},
 		},
 	}
@@ -494,8 +495,8 @@ func TestHandleSetCommand(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Simulate incoming MQTT message
-	bridge.handleSetCommand("root/blinds/item0/set", []byte("P50"))
+	// Process an incoming MQTT set command
+	bridge.processSetCommand("root/blinds/item0/set", []byte("P50"))
 
 	if capturedCategory != "blinds" {
 		t.Errorf("expected category 'blinds', got '%s'", capturedCategory)
@@ -505,5 +506,96 @@ func TestHandleSetCommand(t *testing.T) {
 	}
 	if capturedValue != "P50" {
 		t.Errorf("expected value 'P50', got '%s'", capturedValue)
+	}
+}
+
+func TestCommandWorker_ProcessesMultipleCommands(t *testing.T) {
+	cfg := &Config{
+		MyGekko: MyGekkoConfig{CommandInterval: 0}, // no throttle delay in test
+	}
+	mockMQTT := NewMockMQTT()
+
+	got := make(chan string, 8)
+	mockGekko := NewMockGekko("TestGekko")
+	mockGekko.setValue = func(category, item, value string) error {
+		got <- value
+		return nil
+	}
+
+	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, map[string][]FieldDef{}, "TestGekko")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	go bridge.runCommandWorker()
+	defer bridge.Stop()
+
+	// Two commands arriving back-to-back, as in a burst over MQTT.
+	bridge.handleSetCommand("root/blinds/item0/set", []byte("P50"))
+	bridge.handleSetCommand("root/blinds/item1/set", []byte("P75"))
+
+	var values []string
+	for range 2 {
+		select {
+		case v := <-got:
+			values = append(values, v)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out: only %d of 2 commands processed: %v", len(values), values)
+		}
+	}
+
+	if values[0] != "P50" || values[1] != "P75" {
+		t.Errorf("expected commands processed in order [P50 P75], got %v", values)
+	}
+}
+
+func TestCommandWorker_ImmediatePreemptsThrottle(t *testing.T) {
+	cfg := &Config{
+		MyGekko: MyGekkoConfig{
+			CommandInterval: 10.0, // long throttle so a throttled command would wait
+			// blinds: "P..." is throttled, everything else (e.g. STOP) is immediate
+			ThrottlePrefixes: map[string][]string{"blinds": {"P"}},
+		},
+	}
+	mockMQTT := NewMockMQTT()
+
+	got := make(chan string, 8)
+	mockGekko := NewMockGekko("TestGekko")
+	mockGekko.setValue = func(category, item, value string) error {
+		got <- value
+		return nil
+	}
+
+	bridge, err := NewBridge(cfg, mockGekko, mockMQTT, map[string][]FieldDef{}, "TestGekko")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	go bridge.runCommandWorker()
+	defer bridge.Stop()
+
+	// First command goes through immediately and starts the 10s throttle window.
+	bridge.handleSetCommand("root/blinds/item0/set", []byte("P50"))
+	select {
+	case v := <-got:
+		if v != "P50" {
+			t.Fatalf("expected first command 'P50', got %q", v)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for first command")
+	}
+
+	// A throttled command is now stuck behind the ~10s interval...
+	bridge.handleSetCommand("root/blinds/item0/set", []byte("P75"))
+	// ...but a STOP must preempt the throttle and arrive quickly.
+	bridge.handleSetCommand("root/blinds/item0/set", []byte("STOP"))
+
+	select {
+	case v := <-got:
+		if v != "STOP" {
+			t.Errorf("expected immediate 'STOP' to preempt throttle, got %q", v)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out: immediate STOP did not preempt the throttle wait")
 	}
 }

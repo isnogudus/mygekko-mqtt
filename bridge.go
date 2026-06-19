@@ -41,20 +41,43 @@ type Bridge struct {
 	history   map[string]any
 	ctx       context.Context
 	cancel    context.CancelFunc
+
+	// Incoming set commands are queued here so the MQTT receive loop never
+	// blocks on the (synchronous, potentially slow) MyGEKKO HTTP call. A
+	// single worker drains the queues, which serializes commands and spaces
+	// throttled ones by at least cmdInterval — MyGEKKO is single-threaded and
+	// drops/crashes on commands that arrive too quickly after one another.
+	//
+	// immediateQueue has priority and bypasses the throttle: its commands
+	// (e.g. a blind STOP) are sent as soon as possible, even preempting an
+	// active throttle wait.
+	cmdQueue         chan setCommand
+	immediateQueue   chan setCommand
+	cmdInterval      time.Duration
+	throttlePrefixes map[string][]string // category -> payload prefixes that are throttled
+}
+
+type setCommand struct {
+	topic   string
+	payload []byte
 }
 
 func NewBridge(cfg *Config, gekko GekkoClient, mqtt MQTTPublisher, fieldDefinitions map[string][]FieldDef, gekkoName string) (*Bridge, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Bridge{
-		cfg:       cfg,
-		gekko:     gekko,
-		mqtt:      mqtt,
-		fieldDef:  fieldDefinitions,
-		gekkoName: gekkoName,
-		history:   make(map[string]any),
-		ctx:       ctx,
-		cancel:    cancel,
+		cfg:              cfg,
+		gekko:            gekko,
+		mqtt:             mqtt,
+		fieldDef:         fieldDefinitions,
+		gekkoName:        gekkoName,
+		history:          make(map[string]any),
+		ctx:              ctx,
+		cancel:           cancel,
+		cmdQueue:         make(chan setCommand, 256),
+		immediateQueue:   make(chan setCommand, 64),
+		cmdInterval:      time.Duration(cfg.MyGekko.CommandInterval * float64(time.Second)),
+		throttlePrefixes: cfg.MyGekko.ThrottlePrefixes,
 	}, nil
 }
 
@@ -241,6 +264,10 @@ func (b *Bridge) processItem(category, item string, sumstate any) {
 func (b *Bridge) RunSetter() {
 	slog.Info("Starting setter...")
 
+	// Drain the command queue in a dedicated goroutine so the MQTT receive
+	// loop is never blocked by a slow MyGEKKO request.
+	go b.runCommandWorker()
+
 	// Subscribe to all set commands for all known categories
 	allCategories := make([]string, 0, len(b.fieldDef))
 	for category := range b.fieldDef {
@@ -265,14 +292,127 @@ func (b *Bridge) RunSetter() {
 	slog.Info("Setter stopped")
 }
 
-func (b *Bridge) handleSetCommand(topic string, payload []byte) {
-	slog.Info("Incoming message...")
+// categoryFromTopic extracts the category from a set topic
+// ({root}/{category}/{item}/set), or "" if the topic is malformed.
+func categoryFromTopic(topic string) string {
+	parts := strings.Split(topic, "/")
+	if len(parts) < 4 {
+		return ""
+	}
+	return parts[len(parts)-3]
+}
 
+// isThrottled reports whether a command must be spaced by cmdInterval (true) or
+// may be sent immediately (false). Categories without a throttle rule are
+// throttled entirely; for a category with a rule, only payloads starting with
+// one of its prefixes are throttled (e.g. blinds "P50"), the rest are immediate.
+func (b *Bridge) isThrottled(category, value string) bool {
+	prefixes, ok := b.throttlePrefixes[category]
+	if !ok {
+		return true
+	}
+	for _, p := range prefixes {
+		if strings.HasPrefix(value, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// handleSetCommand is the MQTT receive callback. It must not block, so it only
+// copies the message and hands it to the command worker via the matching queue.
+func (b *Bridge) handleSetCommand(topic string, payload []byte) {
+	slog.Info("Incoming message...", "topic", topic)
+
+	// paho may reuse the payload buffer after this callback returns, so copy it.
+	p := make([]byte, len(payload))
+	copy(p, payload)
+
+	cmd := setCommand{topic: topic, payload: p}
+
+	queue := b.cmdQueue
+	if !b.isThrottled(categoryFromTopic(topic), string(p)) {
+		slog.Debug("Queuing immediate command", "topic", topic)
+		queue = b.immediateQueue
+	}
+
+	select {
+	case queue <- cmd:
+	case <-b.ctx.Done():
+	}
+}
+
+// runCommandWorker drains the command queues, sending one command at a time to
+// MyGEKKO. Immediate commands are sent as soon as possible; throttled commands
+// are spaced by at least cmdInterval. An immediate command preempts an active
+// throttle wait.
+func (b *Bridge) runCommandWorker() {
+	slog.Info("Starting command worker...")
+	var last time.Time
+
+	send := func(cmd setCommand) {
+		b.processSetCommand(cmd.topic, cmd.payload)
+		last = time.Now()
+	}
+
+	for {
+		// Highest priority: a pending immediate command, sent without delay.
+		select {
+		case <-b.ctx.Done():
+			slog.Info("Command worker stopped")
+			return
+		case cmd := <-b.immediateQueue:
+			send(cmd)
+			continue
+		default:
+		}
+
+		// How long before the next throttled command may be sent.
+		var delay time.Duration
+		if b.cmdInterval > 0 {
+			delay = b.cmdInterval - time.Since(last)
+		}
+
+		if delay <= 0 {
+			// No throttle pending: send the next ready command, still
+			// preferring immediate ones.
+			select {
+			case <-b.ctx.Done():
+				slog.Info("Command worker stopped")
+				return
+			case cmd := <-b.immediateQueue:
+				send(cmd)
+			case cmd := <-b.cmdQueue:
+				send(cmd)
+			}
+			continue
+		}
+
+		// Throttle active: wait out the interval, but let an immediate command
+		// preempt the wait.
+		slog.Debug("Throttling set commands", "wait", delay)
+		timer := time.NewTimer(delay)
+		select {
+		case <-b.ctx.Done():
+			timer.Stop()
+			slog.Info("Command worker stopped")
+			return
+		case cmd := <-b.immediateQueue:
+			timer.Stop()
+			slog.Debug("Immediate command preempts throttle", "topic", cmd.topic)
+			send(cmd)
+		case <-timer.C:
+			// Interval elapsed; loop to dispatch the next command.
+		}
+	}
+}
+
+func (b *Bridge) processSetCommand(topic string, payload []byte) {
 	// Parse topic: {root}/{category}/{item}/set
 	parts := strings.Split(topic, "/")
 	if len(parts) < 4 {
 		slog.Error("Invalid topic format", "topic", topic)
-		os.Exit(8)
+		return
 	}
 
 	// Extract category and item (skip root prefix)
@@ -282,10 +422,13 @@ func (b *Bridge) handleSetCommand(topic string, payload []byte) {
 
 	slog.Info("Write command", "value", value, "category", category, "item", item)
 
+	// A failed command must not take down the bridge: that would also drop all
+	// other commands still queued behind it. Log it and carry on.
 	if err := b.gekko.SetValue(category, item, value); err != nil {
-		slog.Error("MyGEKKO command error", "error", err)
-		os.Exit(9)
+		slog.Error("MyGEKKO command error", "error", err, "category", category, "item", item, "value", value)
+		return
 	}
+	slog.Debug("Command ok", "category", category, "item", item, "value", value)
 }
 
 // parseFormatField parses a single field from the format string

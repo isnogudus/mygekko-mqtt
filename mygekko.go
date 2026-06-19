@@ -127,11 +127,14 @@ func (c *MyGekkoClient) SetValue(category, item, value string) error {
 		return fmt.Errorf("HTTP status %d: %s", resp.StatusCode, bodyStr)
 	}
 
-	if bodyStr != "OK" {
+	// MyGEKKO signals success either with the literal "OK" or, depending on
+	// the endpoint/firmware, an empty body or an empty JSON object "{}".
+	switch bodyStr {
+	case "OK", "", "{}":
+		return nil
+	default:
 		return fmt.Errorf("unexpected response: %s", bodyStr)
 	}
-
-	return nil
 }
 
 func (c *MyGekkoClient) GetGekkoName() (string, error) {
